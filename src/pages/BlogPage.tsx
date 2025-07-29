@@ -1,0 +1,159 @@
+// src/pages/BlogPage.tsx
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import ParticlesBackground from '../components/ParticlesBackground';
+import fm from 'front-matter';
+
+// --- Define Interfaces ---
+interface BlogPostFrontMatter {
+  title: string;
+  date: string;
+  slug: string;
+  imageUrl: string;
+  excerpt: string;
+}
+
+interface BlogPostCardProps {
+  post: BlogPostFrontMatter;
+}
+
+// --- Reusable Blog Post Card Component ---
+// This component displays a single blog post summary card.
+const BlogPostCard: React.FC<BlogPostCardProps> = ({ post }) => {
+  return (
+    <Link
+      to={`/blog/${post.slug}`}
+      className="block bg-white/30 dark:bg-gray-800/30 backdrop-blur-md rounded-lg shadow-lg overflow-hidden transition duration-300 ease-in-out hover:shadow-xl transform hover:-translate-y-1 group"
+    >
+      <div className="overflow-hidden">
+        <img
+          src={post.imageUrl }
+          alt={`Featured image for ${post.title}`}
+          className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+      </div>
+      <div className="p-6">
+        <p className="text-sm text-gray-700 dark:text-gray-300 mb-1 font-semibold">
+          {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+        <h3 className="text-xl font-bold mb-2 text-gray-800 dark:text-white line-clamp-2">
+          {post.title}
+        </h3>
+        <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-3">
+          {post.excerpt}
+        </p>
+      </div>
+    </Link>
+  );
+};
+
+// --- Main Blog Page Component ---
+// Fetches and displays the list of blog posts.
+const BlogPage: React.FC = () => {
+  // State variables for posts, loading status, and errors
+  const [posts, setPosts] = useState<BlogPostFrontMatter[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Effect hook to fetch post data when the component mounts
+  useEffect(() => {
+    const fetchPosts = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        // List of known post slugs
+        const postSlugs = [
+          "deploying-vite-react-app",
+          "first-react-project-journey",
+          "tailwind-css-deep-dive",
+          "understanding-react-hooks",
+        ];
+
+        // Fetch and parse each Markdown file
+        const posts = await Promise.all(
+          postSlugs.map(async (slug) => {
+            console.log(`Fetching /content/posts/${slug}.md`);
+            const response = await fetch(`/content/posts/${slug}.md`);
+            if (!response.ok) {
+              console.error(`Error fetching: /content/posts/${slug}.md`, response.statusText);
+              throw new Error(`Failed to fetch ${slug}.md: ${response.statusText}`);
+            }
+
+            const text = await response.text();
+            const { attributes, body } = fm<BlogPostFrontMatter>(text);
+
+            return {
+              title: attributes.title,
+              date: attributes.date,
+              slug,
+              imageUrl: attributes.imageUrl || "https://via.placeholder.com/400x250",
+              excerpt: attributes.excerpt || body.slice(0, 150) + "...",
+            };
+          })
+        );
+
+        // Sort posts by date (newest first)
+        posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        setPosts(posts);
+      } catch (err: any) {
+        console.error("Error fetching posts:", err);
+        setError("Could not load blog posts. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts(); // Call the fetch function
+  }, []); // Empty dependency array ensures this effect runs only once on mount
+
+  // --- Render the component ---
+  return (
+    <div className="relative"> {/* Parent container for positioning context */}
+      <ParticlesBackground /> {/* Background animation component */}
+      <section
+        id="blog-list"
+        className="py-16 md:py-4 bg-transparent min-h-[calc(100vh-124px)] relative z-10" // Transparent content section on top
+      >
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-gray-90 dark:text-white">
+            From the Blog
+          </h2>
+
+          {/* Conditional rendering based on loading and error state */}
+          {loading && (
+            <div className="flex justify-center my-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          )}
+
+          {error && (
+            <div className="max-w-2xl mx-auto bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+
+          {/* Render posts grid only if not loading and no error occurred */}
+          {!loading && !error && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+              {posts.length > 0 ? (
+                // Map over the fetched posts array to render cards
+                posts.map((post) => (
+                  <BlogPostCard key={post.slug} post={post} />
+                ))
+              ) : (
+                // Display message if no posts were loaded successfully
+                <p className="text-center col-span-full bg-white/80 dark:bg-gray-900/80 p-6 rounded">
+                  No blog posts available yet.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+};
+
+export default BlogPage;

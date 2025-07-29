@@ -1,0 +1,131 @@
+// src/pages/BlogDetail.tsx
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import ParticlesBackground from '../components/ParticlesBackground';
+import fm from 'front-matter';
+import ReactMarkdown from 'react-markdown';
+
+interface BlogPostFrontMatter {
+  title: string;
+  date: string;
+  slug: string;
+  imageUrl: string;
+  excerpt: string;
+}
+
+interface BlogPostData extends BlogPostFrontMatter {
+  content: string;
+}
+
+const BlogDetail: React.FC = () => {
+  const { slug } = useParams<{ slug: string }>();
+  const [post, setPost] = useState<BlogPostData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPost = async () => {
+      if (!slug) {
+        setError("No post slug provided");
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/content/posts/${slug}.md`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch post: ${response.statusText}`);
+        }
+
+        const text = await response.text();
+        const { attributes, body } = fm<BlogPostFrontMatter>(text);
+
+        setPost({
+          title: attributes.title,
+          date: attributes.date,
+          slug,
+          imageUrl: attributes.imageUrl || "https://via.placeholder.com/1200x600",
+          excerpt: attributes.excerpt || body.slice(0, 150) + "...",
+          content: body
+        });
+      } catch (err: any) {
+        console.error("Error fetching post:", err);
+        setError("Could not load this blog post. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPost();
+  }, [slug]);
+
+  return (
+    <div className="relative min-h-screen">
+      <ParticlesBackground />
+      <div className="container mx-auto px-4 py-12 relative z-10">
+        {/* Back button */}
+        <Link 
+          to="/blog" 
+          className="inline-flex items-center mb-8 text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
+          </svg>
+          Back to all posts
+        </Link>
+
+        {loading && (
+          <div className="flex justify-center my-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+
+        {error && (
+          <div className="max-w-3xl mx-auto bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+            <p className="text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && post && (
+          <article className="max-w-4xl mx-auto bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-lg rounded-lg overflow-hidden">
+            {/* Featured image */}
+            <div className="w-full h-64 md:h-96 overflow-hidden">
+              <img 
+                src={post.imageUrl} 
+                alt={`Featured image for ${post.title}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            
+            {/* Post content */}
+            <div className="p-8">
+              {/* Post metadata */}
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {new Date(post.date).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+                <h1 className="text-3xl md:text-4xl font-bold mt-2 text-gray-900 dark:text-white">
+                  {post.title}
+                </h1>
+              </div>
+              
+              {/* Post content rendered as markdown */}
+              <div className="prose prose-lg max-w-none dark:prose-invert">
+                <ReactMarkdown>{post.content}</ReactMarkdown>
+              </div>
+            </div>
+          </article>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default BlogDetail;
